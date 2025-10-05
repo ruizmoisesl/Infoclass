@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, BookOpen, MapPin, Users, Hash } from 'lucide-react';
+import { X, BookOpen, MapPin, Hash } from 'lucide-react';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
 

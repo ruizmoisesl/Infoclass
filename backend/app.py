@@ -13,9 +13,14 @@ from functools import wraps
 from config import Config
 from db import query_one, query_all, execute
 import bcrypt
+from email_config import init_mail, send_verification_email, send_notification_email, generate_verification_token
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Inicializar Flask-Mail
+mail = init_mail(app)
+app.mail = mail
 
 # Configuración para archivos
 UPLOAD_FOLDER = 'uploads'
@@ -128,36 +133,147 @@ def register():
 
     # Hash de contraseña con bcrypt (compatible con datos sembrados)
     pw_hash = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    # Generar token de verificación
+    verification_token = generate_verification_token()
+    verification_expires = datetime.now() + timedelta(hours=24)
 
     try:
         user_id, _ = execute(
             """
-            INSERT INTO users (email, password_hash, first_name, last_name, role)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO users (email, password_hash, first_name, last_name, role, 
+                             email_verified, verification_token, verification_token_expires)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 data['email'],
                 pw_hash,
                 data['first_name'],
                 data['last_name'],
-                data['role']
+                data['role'],
+                False,  # email_verified
+                verification_token,
+                verification_expires
             )
         )
 
+        # Enviar email de verificación
+        email_sent = send_verification_email(
+            data['email'], 
+            f"{data['first_name']} {data['last_name']}", 
+            verification_token
+        )
+        
+        if not email_sent:
+            print(f"Advertencia: No se pudo enviar email de verificación a {data['email']}")
+
         access_token = create_access_token(identity=str(user_id))
         return jsonify({
-            'message': 'Usuario creado exitosamente',
+            'message': 'Usuario creado exitosamente. Revisa tu email para verificar tu cuenta.',
             'access_token': access_token,
             'user': {
                 'id': user_id,
                 'email': data['email'],
                 'first_name': data['first_name'],
                 'last_name': data['last_name'],
-                'role': data['role']
-            }
+                'role': data['role'],
+                'email_verified': False
+            },
+            'email_verification_sent': email_sent
         }), 201
     except Exception as e:
+        print(f"Error en registro: {e}")
         return jsonify({'message': 'Error al crear usuario'}), 500
+
+@app.route('/api/auth/verify-email', methods=['POST'])
+def verify_email():
+    """Verifica el email del usuario usando el token"""
+    data = request.get_json()
+    token = data.get('token')
+    
+    if not token:
+        return jsonify({'message': 'Token de verificación requerido'}), 400
+    
+    try:
+        # Buscar usuario por token
+        user = query_one("""
+            SELECT id, email, first_name, last_name, verification_token_expires 
+            FROM users 
+            WHERE verification_token = %s AND email_verified = FALSE
+        """, (token,))
+        
+        if not user:
+            return jsonify({'message': 'Token de verificación inválido o ya usado'}), 400
+        
+        # Verificar si el token no ha expirado
+        if datetime.now() > user['verification_token_expires']:
+            return jsonify({'message': 'El token de verificación ha expirado'}), 400
+        
+        # Marcar email como verificado
+        execute("""
+            UPDATE users 
+            SET email_verified = TRUE, verification_token = NULL, verification_token_expires = NULL 
+            WHERE id = %s
+        """, (user['id'],))
+        
+        return jsonify({
+            'message': 'Email verificado exitosamente',
+            'user': {
+                'id': user['id'],
+                'email': user['email'],
+                'first_name': user['first_name'],
+                'last_name': user['last_name'],
+                'email_verified': True
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"Error en verificación de email: {e}")
+        return jsonify({'message': 'Error al verificar email'}), 500
+
+@app.route('/api/auth/resend-verification', methods=['POST'])
+@jwt_required()
+def resend_verification():
+    """Reenvía el email de verificación"""
+    try:
+        user_id = int(get_jwt_identity())
+        user = query_one("""
+            SELECT id, email, first_name, last_name, email_verified 
+            FROM users WHERE id = %s
+        """, (user_id,))
+        
+        if not user:
+            return jsonify({'message': 'Usuario no encontrado'}), 404
+        
+        if user['email_verified']:
+            return jsonify({'message': 'El email ya está verificado'}), 400
+        
+        # Generar nuevo token
+        verification_token = generate_verification_token()
+        verification_expires = datetime.now() + timedelta(hours=24)
+        
+        # Actualizar token en la base de datos
+        execute("""
+            UPDATE users 
+            SET verification_token = %s, verification_token_expires = %s 
+            WHERE id = %s
+        """, (verification_token, verification_expires, user_id))
+        
+        # Enviar email
+        email_sent = send_verification_email(
+            user['email'], 
+            f"{user['first_name']} {user['last_name']}", 
+            verification_token
+        )
+        
+        if email_sent:
+            return jsonify({'message': 'Email de verificación reenviado'}), 200
+        else:
+            return jsonify({'message': 'Error al enviar email de verificación'}), 500
+            
+    except Exception as e:
+        print(f"Error reenviando verificación: {e}")
+        return jsonify({'message': 'Error al reenviar verificación'}), 500
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
@@ -245,6 +361,295 @@ def update_user(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'message': 'Error al actualizar usuario'}), 500
+
+# Endpoints para perfil de usuario
+@app.route('/api/users/stats', methods=['GET'])
+@jwt_required()
+def get_user_stats():
+    """Obtiene estadísticas del usuario actual"""
+    try:
+        user_id = int(get_jwt_identity())
+        
+        # Obtener estadísticas del usuario
+        stats = query_one("""
+            SELECT 
+                (SELECT COUNT(*) FROM course_enrollments WHERE student_id = %s) as courses,
+                (SELECT COUNT(*) FROM assignment_submissions WHERE student_id = %s) as submissions,
+                (SELECT AVG(points_earned) FROM assignment_submissions WHERE student_id = %s AND points_earned IS NOT NULL) as average_grade
+        """, (user_id, user_id, user_id))
+        
+        # Obtener número de tareas asignadas
+        assignments_count = query_one("""
+            SELECT COUNT(*) as count
+            FROM assignments a
+            JOIN course_enrollments ce ON a.course_id = ce.course_id
+            WHERE ce.student_id = %s
+        """, (user_id,))
+        
+        return jsonify({
+            'courses': stats['courses'] or 0,
+            'assignments': assignments_count['count'] or 0,
+            'submissions': stats['submissions'] or 0,
+            'average': round(float(stats['average_grade'] or 0), 2)
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo estadísticas: {e}")
+        return jsonify({'message': 'Error al obtener estadísticas'}), 500
+
+@app.route('/api/users/notification-settings', methods=['GET'])
+@jwt_required()
+def get_notification_settings():
+    """Obtiene la configuración de notificaciones del usuario"""
+    try:
+        user_id = int(get_jwt_identity())
+        
+        settings = query_one("""
+            SELECT email_notifications, assignment_reminders, grade_notifications, announcement_notifications
+            FROM users WHERE id = %s
+        """, (user_id,))
+        
+        if not settings:
+            return jsonify({'message': 'Usuario no encontrado'}), 404
+        
+        return jsonify({
+            'email_notifications': bool(settings['email_notifications']),
+            'assignment_reminders': bool(settings['assignment_reminders']),
+            'grade_notifications': bool(settings['grade_notifications']),
+            'announcement_notifications': bool(settings['announcement_notifications'])
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo configuración de notificaciones: {e}")
+        return jsonify({'message': 'Error al obtener configuración'}), 500
+
+@app.route('/api/users/notification-settings', methods=['PUT'])
+@jwt_required()
+def update_notification_settings():
+    """Actualiza la configuración de notificaciones del usuario"""
+    try:
+        user_id = int(get_jwt_identity())
+        data = request.get_json()
+        
+        # Validar datos
+        valid_fields = ['email_notifications', 'assignment_reminders', 'grade_notifications', 'announcement_notifications']
+        update_fields = []
+        update_values = []
+        
+        for field in valid_fields:
+            if field in data:
+                update_fields.append(f"{field} = %s")
+                update_values.append(bool(data[field]))
+        
+        if not update_fields:
+            return jsonify({'message': 'No hay campos para actualizar'}), 400
+        
+        update_values.append(user_id)
+        
+        execute(f"""
+            UPDATE users 
+            SET {', '.join(update_fields)}
+            WHERE id = %s
+        """, tuple(update_values))
+        
+        return jsonify({'message': 'Configuración actualizada exitosamente'})
+        
+    except Exception as e:
+        print(f"Error actualizando configuración: {e}")
+        return jsonify({'message': 'Error al actualizar configuración'}), 500
+
+@app.route('/api/users/profile', methods=['PUT'])
+@jwt_required()
+def update_user_profile():
+    """Actualiza el perfil del usuario"""
+    try:
+        user_id = int(get_jwt_identity())
+        data = request.get_json()
+        
+        # Validar datos
+        valid_fields = ['first_name', 'last_name', 'bio', 'phone', 'website']
+        update_fields = []
+        update_values = []
+        
+        for field in valid_fields:
+            if field in data:
+                update_fields.append(f"{field} = %s")
+                update_values.append(data[field])
+        
+        if not update_fields:
+            return jsonify({'message': 'No hay campos para actualizar'}), 400
+        
+        update_values.append(user_id)
+        
+        execute(f"""
+            UPDATE users 
+            SET {', '.join(update_fields)}
+            WHERE id = %s
+        """, tuple(update_values))
+        
+        # Obtener usuario actualizado
+        updated_user = query_one("""
+            SELECT id, email, first_name, last_name, role, bio, phone, website, email_verified, created_at
+            FROM users WHERE id = %s
+        """, (user_id,))
+        
+        return jsonify({
+            'message': 'Perfil actualizado exitosamente',
+            'user': {
+                'id': updated_user['id'],
+                'email': updated_user['email'],
+                'first_name': updated_user['first_name'],
+                'last_name': updated_user['last_name'],
+                'role': updated_user['role'],
+                'bio': updated_user['bio'],
+                'phone': updated_user['phone'],
+                'website': updated_user['website'],
+                'email_verified': bool(updated_user['email_verified']),
+                'created_at': updated_user['created_at'].isoformat() if updated_user['created_at'] else None
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error actualizando perfil: {e}")
+        return jsonify({'message': 'Error al actualizar perfil'}), 500
+
+@app.route('/api/users/password', methods=['PUT'])
+@jwt_required()
+def update_user_password():
+    """Actualiza la contraseña del usuario"""
+    try:
+        user_id = int(get_jwt_identity())
+        data = request.get_json()
+        
+        current_password = data.get('current_password')
+        new_password = data.get('new_password')
+        
+        if not current_password or not new_password:
+            return jsonify({'message': 'Contraseña actual y nueva contraseña son requeridas'}), 400
+        
+        if len(new_password) < 6:
+            return jsonify({'message': 'La nueva contraseña debe tener al menos 6 caracteres'}), 400
+        
+        # Verificar contraseña actual
+        user = query_one("SELECT password_hash FROM users WHERE id = %s", (user_id,))
+        if not user:
+            return jsonify({'message': 'Usuario no encontrado'}), 404
+        
+        if not bcrypt.checkpw(current_password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+            return jsonify({'message': 'Contraseña actual incorrecta'}), 400
+        
+        # Actualizar contraseña
+        new_password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        execute("UPDATE users SET password_hash = %s WHERE id = %s", (new_password_hash, user_id))
+        
+        return jsonify({'message': 'Contraseña actualizada exitosamente'})
+        
+    except Exception as e:
+        print(f"Error actualizando contraseña: {e}")
+        return jsonify({'message': 'Error al actualizar contraseña'}), 500
+
+@app.route('/api/users/avatar', methods=['POST'])
+@jwt_required()
+def upload_avatar():
+    """Sube un avatar para el usuario"""
+    try:
+        user_id = int(get_jwt_identity())
+        
+        if 'avatar' not in request.files:
+            return jsonify({'message': 'No se encontró archivo de avatar'}), 400
+        
+        file = request.files['avatar']
+        if file.filename == '':
+            return jsonify({'message': 'No se seleccionó archivo'}), 400
+        
+        if not allowed_file(file.filename):
+            return jsonify({'message': 'Tipo de archivo no permitido'}), 400
+        
+        # Generar nombre único para el archivo
+        filename = secure_filename(file.filename)
+        file_extension = filename.rsplit('.', 1)[1].lower()
+        unique_filename = f"avatar_{user_id}_{uuid.uuid4().hex}.{file_extension}"
+        
+        # Crear directorio de avatares si no existe
+        avatar_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'avatars')
+        os.makedirs(avatar_dir, exist_ok=True)
+        
+        # Guardar archivo
+        file_path = os.path.join(avatar_dir, unique_filename)
+        file.save(file_path)
+        
+        # Actualizar base de datos
+        avatar_url = f"/uploads/avatars/{unique_filename}"
+        execute("UPDATE users SET avatar = %s WHERE id = %s", (avatar_url, user_id))
+        
+        # Obtener usuario actualizado
+        updated_user = query_one("""
+            SELECT id, email, first_name, last_name, role, avatar, email_verified, created_at
+            FROM users WHERE id = %s
+        """, (user_id,))
+        
+        return jsonify({
+            'message': 'Avatar actualizado exitosamente',
+            'user': {
+                'id': updated_user['id'],
+                'email': updated_user['email'],
+                'first_name': updated_user['first_name'],
+                'last_name': updated_user['last_name'],
+                'role': updated_user['role'],
+                'avatar': updated_user['avatar'],
+                'email_verified': bool(updated_user['email_verified']),
+                'created_at': updated_user['created_at'].isoformat() if updated_user['created_at'] else None
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error subiendo avatar: {e}")
+        return jsonify({'message': 'Error al subir avatar'}), 500
+
+@app.route('/api/users/avatar', methods=['DELETE'])
+@jwt_required()
+def delete_avatar():
+    """Elimina el avatar del usuario"""
+    try:
+        user_id = int(get_jwt_identity())
+        
+        # Obtener avatar actual
+        user = query_one("SELECT avatar FROM users WHERE id = %s", (user_id,))
+        if not user:
+            return jsonify({'message': 'Usuario no encontrado'}), 404
+        
+        # Eliminar archivo si existe
+        if user['avatar']:
+            avatar_path = os.path.join(app.config['UPLOAD_FOLDER'], user['avatar'].replace('/uploads/', ''))
+            if os.path.exists(avatar_path):
+                os.remove(avatar_path)
+        
+        # Actualizar base de datos
+        execute("UPDATE users SET avatar = NULL WHERE id = %s", (user_id,))
+        
+        # Obtener usuario actualizado
+        updated_user = query_one("""
+            SELECT id, email, first_name, last_name, role, avatar, email_verified, created_at
+            FROM users WHERE id = %s
+        """, (user_id,))
+        
+        return jsonify({
+            'message': 'Avatar eliminado exitosamente',
+            'user': {
+                'id': updated_user['id'],
+                'email': updated_user['email'],
+                'first_name': updated_user['first_name'],
+                'last_name': updated_user['last_name'],
+                'role': updated_user['role'],
+                'avatar': updated_user['avatar'],
+                'email_verified': bool(updated_user['email_verified']),
+                'created_at': updated_user['created_at'].isoformat() if updated_user['created_at'] else None
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error eliminando avatar: {e}")
+        return jsonify({'message': 'Error al eliminar avatar'}), 500
 
 # Rutas de gestión de cursos
 @app.route('/api/courses', methods=['GET'])
@@ -752,8 +1157,14 @@ def get_course_detail(course_id):
     try:
         current_user_id = int(get_jwt_identity())
         
-        # Buscar el curso
-        course = Course.query.get(course_id)
+        # Buscar el curso con información del profesor
+        course = query_one("""
+            SELECT c.*, u.first_name, u.last_name, u.email
+            FROM courses c
+            JOIN users u ON u.id = c.teacher_id
+            WHERE c.id = %s
+        """, (course_id,))
+        
         if not course:
             return jsonify({'message': 'Curso no encontrado'}), 404
         
@@ -761,14 +1172,14 @@ def get_course_detail(course_id):
         has_access = False
         
         # Verificar si es el profesor del curso
-        if course.teacher_id == current_user_id:
+        if course['teacher_id'] == current_user_id:
             has_access = True
         else:
             # Verificar si el usuario está inscrito como estudiante
-            enrollment = CourseEnrollment.query.filter_by(
-                student_id=current_user_id,
-                course_id=course_id
-            ).first()
+            enrollment = query_one("""
+                SELECT id FROM course_enrollments 
+                WHERE student_id = %s AND course_id = %s
+            """, (current_user_id, course_id))
             if enrollment:
                 has_access = True
         
@@ -776,31 +1187,32 @@ def get_course_detail(course_id):
             return jsonify({'message': 'No tienes acceso a este curso'}), 403
         
         # Contar estudiantes inscritos en el curso
-        students_count = CourseEnrollment.query.filter_by(course_id=course_id).count()
-        
-        # Obtener información del profesor
-        teacher = course.teacher
+        students_count = query_one("""
+            SELECT COUNT(*) as count FROM course_enrollments 
+            WHERE course_id = %s
+        """, (course_id,))['count']
         
         return jsonify({
-            'id': course.id,
-            'name': course.name,
-            'description': course.description,
-            'section': course.section,
-            'subject': course.subject,
-            'room': course.room,
-            'access_code': course.access_code,
-            'is_active': course.is_active,
+            'id': course['id'],
+            'name': course['name'],
+            'description': course['description'],
+            'section': course['section'],
+            'subject': course['subject'],
+            'room': course['room'],
+            'access_code': course['access_code'],
+            'is_active': bool(course['is_active']) if course['is_active'] is not None else True,
             'teacher': {
-                'id': teacher.id,
-                'first_name': teacher.first_name,
-                'last_name': teacher.last_name,
-                'email': teacher.email
+                'id': course['teacher_id'],
+                'first_name': course['first_name'],
+                'last_name': course['last_name'],
+                'email': course['email']
             },
             'students_count': students_count,
-            'created_at': course.created_at.isoformat() if course.created_at else None
+            'created_at': course['created_at'].isoformat() if course['created_at'] else None
         })
         
     except Exception as e:
+        print(f"Error en get_course_detail: {e}")
         return jsonify({'message': 'Error al obtener detalles del curso'}), 500
 
 @app.route('/api/assignments/<int:assignment_id>', methods=['GET'])
@@ -1438,6 +1850,121 @@ def handle_leave_user_room(data):
     current_user_id = int(get_jwt_identity())
     leave_room(f'user_{current_user_id}')
     print(f'Usuario {current_user_id} salió de su sala')
+
+# Funciones para notificaciones por email
+def send_assignment_notification(assignment_id, course_id):
+    """Envía notificación por email cuando se crea una nueva tarea"""
+    try:
+        # Obtener información de la tarea y curso
+        assignment = query_one("""
+            SELECT a.*, c.name as course_name, u.first_name, u.last_name, u.email as teacher_email
+            FROM assignments a
+            JOIN courses c ON a.course_id = c.id
+            JOIN users u ON c.teacher_id = u.id
+            WHERE a.id = %s
+        """, (assignment_id,))
+        
+        if not assignment:
+            return False
+        
+        # Obtener estudiantes inscritos en el curso
+        students = query_all("""
+            SELECT u.email, u.first_name, u.last_name, u.assignment_reminders
+            FROM course_enrollments ce
+            JOIN users u ON ce.student_id = u.id
+            WHERE ce.course_id = %s AND u.email_notifications = TRUE AND u.assignment_reminders = TRUE
+        """, (course_id,))
+        
+        # Enviar notificación a cada estudiante
+        for student in students:
+            send_notification_email(
+                student['email'],
+                f"{student['first_name']} {student['last_name']}",
+                'assignment',
+                {
+                    'title': assignment['title'],
+                    'description': assignment['description'],
+                    'due_date': assignment['due_date'].strftime('%d/%m/%Y %H:%M') if assignment['due_date'] else 'N/A',
+                    'course_name': assignment['course_name'],
+                    'teacher_name': f"{assignment['first_name']} {assignment['last_name']}"
+                }
+            )
+        
+        return True
+    except Exception as e:
+        print(f"Error enviando notificación de tarea: {e}")
+        return False
+
+def send_grade_notification(submission_id):
+    """Envía notificación por email cuando se califica una tarea"""
+    try:
+        # Obtener información de la calificación
+        submission = query_one("""
+            SELECT s.*, a.title as assignment_title, u.email, u.first_name, u.last_name, u.grade_notifications
+            FROM assignment_submissions s
+            JOIN assignments a ON s.assignment_id = a.id
+            JOIN users u ON s.student_id = u.id
+            WHERE s.id = %s AND u.email_notifications = TRUE AND u.grade_notifications = TRUE
+        """, (submission_id,))
+        
+        if not submission or not submission['grade_notifications']:
+            return False
+        
+        send_notification_email(
+            submission['email'],
+            f"{submission['first_name']} {submission['last_name']}",
+            'grade',
+            {
+                'assignment_title': submission['assignment_title'],
+                'grade': submission['points_earned'],
+                'comments': submission['feedback'] or 'Sin comentarios'
+            }
+        )
+        
+        return True
+    except Exception as e:
+        print(f"Error enviando notificación de calificación: {e}")
+        return False
+
+def send_announcement_notification(announcement_id, course_id):
+    """Envía notificación por email cuando se crea un anuncio"""
+    try:
+        # Obtener información del anuncio
+        announcement = query_one("""
+            SELECT a.*, c.name as course_name
+            FROM announcements a
+            JOIN courses c ON a.course_id = c.id
+            WHERE a.id = %s
+        """, (announcement_id,))
+        
+        if not announcement:
+            return False
+        
+        # Obtener estudiantes inscritos en el curso
+        students = query_all("""
+            SELECT u.email, u.first_name, u.last_name, u.announcement_notifications
+            FROM course_enrollments ce
+            JOIN users u ON ce.student_id = u.id
+            WHERE ce.course_id = %s AND u.email_notifications = TRUE AND u.announcement_notifications = TRUE
+        """, (course_id,))
+        
+        # Enviar notificación a cada estudiante
+        for student in students:
+            send_notification_email(
+                student['email'],
+                f"{student['first_name']} {student['last_name']}",
+                'announcement',
+                {
+                    'title': announcement['title'],
+                    'content': announcement['content'],
+                    'course_name': announcement['course_name']
+                }
+            )
+        
+        return True
+    except Exception as e:
+        print(f"Error enviando notificación de anuncio: {e}")
+        return False
 
 if __name__ == '__main__':
     # Crear tablas solo si el ORM aún se utiliza; ignorar errores si el esquema ya existe

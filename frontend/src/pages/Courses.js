@@ -18,8 +18,7 @@ import {
   Archive,
   
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { formatDateMedium } from '../utils/dateUtils';
 
 const Courses = () => {
   const { user } = useAuth();
@@ -173,7 +172,7 @@ const Courses = () => {
               <div className="flex items-center text-sm text-secondary-600">
                 <Calendar className="w-4 h-4 mr-2" />
                 {course.created_at
-                  ? format(new Date(course.created_at), 'dd MMM yyyy', { locale: es })
+                  ? formatDateMedium(course.created_at)
                   : ''}
               </div>
             </div>

@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, X, Check, CheckCheck, FileText, MessageSquare, Calendar, Star } from 'lucide-react';
+import { Bell, X, Check, CheckCheck, FileText, MessageSquare } from 'lucide-react';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
 
 const NotificationCenter = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Cargar notificaciones

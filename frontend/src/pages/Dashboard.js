@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/axios';
 import {BookOpen,FileText,Users,TrendingUp,Calendar,Clock,AlertCircle,CheckCircle,Plus} from 'lucide-react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { formatDateShort } from '../utils/dateUtils';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -221,7 +220,7 @@ const Dashboard = () => {
                     <div className="flex items-center space-x-2 mt-1">
                       <Calendar className="w-3 h-3 text-secondary-400" />
                       <p className="text-xs text-secondary-500">
-                        {format(new Date(assignment.due_date), 'dd MMM', { locale: es })}
+                        {formatDateShort(assignment.due_date)}
                       </p>
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(assignment.status)}`}>
                         {getStatusIcon(assignment.status)}

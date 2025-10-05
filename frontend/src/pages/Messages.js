@@ -5,15 +5,11 @@ import {
   MessageSquare,
   Send,
   User,
-  Mail,
-  Clock,
   Check,
   Plus,
-  Search,
-  Filter
+  Search
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { formatDateShort, formatDateTime } from '../utils/dateUtils';
 import MessageModal from '../components/MessageModal';
 
 const Messages = () => {
@@ -158,7 +154,7 @@ const Messages = () => {
                               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                             )}
                             <span className="text-xs text-secondary-500">
-                              {format(new Date(message.created_at), 'dd MMM', { locale: es })}
+                              {formatDateShort(message.created_at)}
                             </span>
                           </div>
                         </div>
@@ -206,7 +202,7 @@ const Messages = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-secondary-600">
-                    {format(new Date(selectedMessage.created_at), 'dd MMM yyyy HH:mm', { locale: es })}
+                    {formatDateTime(selectedMessage.created_at)}
                   </p>
                   {selectedMessage.is_read && (
                     <div className="flex items-center text-xs text-green-600 mt-1">

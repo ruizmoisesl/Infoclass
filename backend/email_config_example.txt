@@ -1,0 +1,21 @@
+# Email Configuration
+# Para Gmail
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USE_TLS=true
+MAIL_USE_SSL=false
+MAIL_USERNAME=tu-email@gmail.com
+MAIL_PASSWORD=tu-app-password
+MAIL_DEFAULT_SENDER=tu-email@gmail.com
+
+# Para Outlook/Hotmail
+# MAIL_SERVER=smtp-mail.outlook.com
+# MAIL_PORT=587
+# MAIL_USE_TLS=true
+# MAIL_USE_SSL=false
+
+# Para Yahoo
+# MAIL_SERVER=smtp.mail.yahoo.com
+# MAIL_PORT=587
+# MAIL_USE_TLS=true
+# MAIL_USE_SSL=false

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/axios';
@@ -20,7 +20,7 @@ import {
   Eye,
   X
 } from 'lucide-react';
-import { format, isAfter, isBefore } from 'date-fns';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'react-toastify';
 
@@ -91,22 +91,7 @@ const AssignmentDetail = () => {
     }
   };
 
-  useEffect(() => {
-    fetchAssignmentData();
-  }, [id]);
-
-  // Cargar archivos de todas las entregas cuando cambien las entregas
-  useEffect(() => {
-    if (submissions.length > 0) {
-      submissions.forEach(submission => {
-        if (!submissionFilesMap[submission.id]) {
-          fetchSubmissionFilesById(submission.id);
-        }
-      });
-    }
-  }, [submissions]);
-
-  const fetchAssignmentData = async () => {
+  const fetchAssignmentData = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
@@ -159,7 +144,34 @@ const AssignmentDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, user?.role]);
+
+  const fetchSubmissionFilesById = useCallback(async (submissionId) => {
+    try {
+      const response = await api.get(`/api/submissions/${submissionId}/files`);
+      setSubmissionFilesMap(prev => ({
+        ...prev,
+        [submissionId]: response.data
+      }));
+    } catch (error) {
+      console.error('Error al cargar archivos de la entrega:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAssignmentData();
+  }, [fetchAssignmentData]);
+
+  // Cargar archivos de todas las entregas cuando cambien las entregas
+  useEffect(() => {
+    if (submissions.length > 0) {
+      submissions.forEach(submission => {
+        if (!submissionFilesMap[submission.id]) {
+          fetchSubmissionFilesById(submission.id);
+        }
+      });
+    }
+  }, [submissions, submissionFilesMap, fetchSubmissionFilesById]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -192,18 +204,6 @@ const AssignmentDetail = () => {
     }
   };
 
-  // Función para cargar archivos de una entrega específica
-  const fetchSubmissionFilesById = async (submissionId) => {
-    try {
-      const response = await api.get(`/api/submissions/${submissionId}/files`);
-      setSubmissionFilesMap(prev => ({
-        ...prev,
-        [submissionId]: response.data
-      }));
-    } catch (error) {
-      console.error('Error al cargar archivos de la entrega:', error);
-    }
-  };
 
   // Función para descargar archivos
   const downloadFile = async (fileId, filename) => {

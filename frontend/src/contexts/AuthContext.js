@@ -86,12 +86,31 @@ export const AuthProvider = ({ children }) => {
     toast.info('Sesión cerrada');
   };
 
+  const updateUser = (userData) => {
+    setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
+  };
+
+  const resendVerification = async () => {
+    try {
+      const response = await api.post('/api/auth/resend-verification');
+      toast.success(response.data.message);
+      return { success: true };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Error al reenviar verificación';
+      toast.error(message);
+      return { success: false, error: message };
+    }
+  };
+
   const value = {
     user,
     loading,
     login,
     register,
-    logout
+    logout,
+    updateUser,
+    resendVerification
   };
 
   return (

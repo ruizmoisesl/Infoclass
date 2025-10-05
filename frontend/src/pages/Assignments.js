@@ -7,7 +7,6 @@ import {
   FileText,
   Plus,
   Search,
-  Filter,
   Calendar,
   Clock,
   CheckCircle,

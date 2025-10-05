@@ -3,6 +3,10 @@ import re
 from urllib.parse import urlparse
 import mysql.connector
 from mysql.connector import pooling
+from dotenv import load_dotenv
+
+# Cargar variables de entorno desde .env
+load_dotenv()
 
 # Parse DATABASE_URL of form: mysql+mysqlconnector://user:pass@host:port/database
 DATABASE_URL = os.getenv("DATABASE_URL", "mysql+mysqlconnector://root:password@localhost:3306/infoclass_db")
@@ -45,6 +49,7 @@ _pool = pooling.MySQLConnectionPool(
     charset="utf8mb4",
     autocommit=True,
 )
+
 
 def get_conn():
     return _pool.get_connection()

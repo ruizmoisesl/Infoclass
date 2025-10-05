@@ -12,7 +12,6 @@ const MessageModal = ({ isOpen, onClose, recipient = null }) => {
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
-  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     if (isOpen && !recipient) {
@@ -21,14 +20,11 @@ const MessageModal = ({ isOpen, onClose, recipient = null }) => {
   }, [isOpen, recipient]);
 
   const fetchUsers = async () => {
-    setSearching(true);
     try {
       const response = await api.get('/api/users');
       setUsers(response.data);
     } catch (error) {
       console.error('Error al cargar usuarios:', error);
-    } finally {
-      setSearching(false);
     }
   };
 

@@ -52,6 +52,7 @@ CREATE TABLE assignments (
     max_points DECIMAL(5,2) NOT NULL DEFAULT 100.00,
     allow_late_submissions BOOLEAN DEFAULT TRUE,
     course_id INT NOT NULL,
+    is_archived BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 );
@@ -155,28 +156,14 @@ CREATE INDEX idx_assignments_course ON assignments(course_id);
 CREATE INDEX idx_submissions_assignment ON assignment_submissions(assignment_id);
 CREATE INDEX idx_submissions_student ON assignment_submissions(student_id);
 CREATE INDEX idx_notifications_user ON notifications(user_id);
+CREATE INDEX idx_notifications_type ON notifications(type);
+CREATE INDEX idx_notifications_read ON notifications(is_read);
 CREATE INDEX idx_messages_sender ON messages(sender_id);
 CREATE INDEX idx_messages_receiver ON messages(receiver_id);
 CREATE INDEX idx_files_submission ON file_attachments(submission_id);
 CREATE INDEX idx_files_assignment ON file_attachments(assignment_id);
 CREATE INDEX idx_files_uploader ON file_attachments(uploaded_by);
 
--- Tabla de notificaciones
-CREATE TABLE notifications (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    message TEXT NOT NULL,
-    type VARCHAR(50) NOT NULL,
-    is_read BOOLEAN DEFAULT FALSE,
-    related_id INT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX idx_notifications_user ON notifications(user_id);
-CREATE INDEX idx_notifications_type ON notifications(type);
-CREATE INDEX idx_notifications_read ON notifications(is_read);
 
 -- Insertar usuario administrador por defecto
 INSERT INTO users (email, password_hash, first_name, last_name, role) 
