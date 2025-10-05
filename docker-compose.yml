@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: infoclass_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: infoclass_db
+      MYSQL_USER: infoclass_user
+      MYSQL_PASSWORD: infoclass_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - infoclass_network
+
+  backend:
+    build: ./backend
+    container_name: infoclass_backend
+    environment:
+      DATABASE_URL: mysql+pymysql://infoclass_user:infoclass_password@mysql:3306/infoclass_db
+      JWT_SECRET_KEY: your-secret-key-change-in-production
+      FLASK_ENV: development
+      FLASK_DEBUG: True
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mysql
+    networks:
+      - infoclass_network
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build: ./frontend
+    container_name: infoclass_frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:5000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - infoclass_network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  mysql_data:
+
+networks:
+  infoclass_network:
+    driver: bridge
