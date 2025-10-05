@@ -118,3 +118,4 @@ PORT=5000
 - [Documentación de Railway](https://docs.railway.app)
 - [Documentación de Render](https://render.com/docs)
 - [Guía de CORS en Flask](https://flask-cors.readthedocs.io/)
+
