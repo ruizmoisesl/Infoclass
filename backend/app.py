@@ -1782,6 +1782,10 @@ def mark_notification_read(notification_id):
         db.session.rollback()
         return jsonify({'message': 'Error al marcar notificación'}), 500
 
+@app.route("/api/health")
+def health():
+    return {"status": "ok"}, 200
+    
 @app.route('/api/notifications/read-all', methods=['PUT'])
 @jwt_required()
 def mark_all_notifications_read():
