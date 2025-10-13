@@ -1971,12 +1971,13 @@ def send_announcement_notification(announcement_id, course_id):
         return False
 
 if __name__ == '__main__':
+    try:
+        with app.app_context():
+            db.create_all()
+    except Exception:
+        pass
 
-        try:
-            with app.app_context():
-                db.create_all()
-        except Exception:
-            pass
     port = int(os.getenv("PORT", 5000))
     debug = os.getenv("FLASK_DEBUG", "False").lower() == "true"
     app.run(host="0.0.0.0", port=port, debug=debug)
+
