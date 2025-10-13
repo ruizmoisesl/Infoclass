@@ -10,8 +10,8 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
         'pool_recycle': 300,
-        'pool_size': 10,
-        'max_overflow': 20
+        'pool_size': 3,
+        'max_overflow': 4
     }
     
     # Configuración JWT
@@ -23,7 +23,7 @@ class Config:
     DEBUG = os.getenv('FLASK_DEBUG', 'True').lower() == 'true'
     
     # Configuración CORS para producción
-    CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
+    CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'https://infoclass-theta.vercel.app').split(',')
     
     # Configuración de archivos
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
