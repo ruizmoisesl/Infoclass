@@ -11,3 +11,4 @@ python-magic
 Flask-SocketIO==5.3.6
 python-socketio==5.9.0
 gunicorn
+eventlet
