@@ -80,8 +80,8 @@ def get_mime_type_by_extension(extension):
 
 # Inicialización de extensiones (usar la instancia de models.db)
 jwt = JWTManager(app)
-CORS(app, origins=app.config['CORS_ORIGINS'])
-socketio = SocketIO(app, cors_allowed_origins=app.config['CORS_ORIGINS'])
+CORS(app, origins=app.config['https://infoclass-theta.vercel.app'])
+socketio = SocketIO(app, cors_allowed_origins=app.config['https://infoclass-theta.vercel.app'])
 
 # Importar modelos y unificar la instancia de DB
 from models import (
