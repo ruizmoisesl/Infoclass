@@ -21,4 +21,5 @@ COPY . .
 EXPOSE 5000
 
 # Comando de inicio en producción
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:${PORT}"]
+CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:${PORT}", "app:app"]
+
