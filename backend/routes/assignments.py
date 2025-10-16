@@ -26,6 +26,7 @@ from models import (
     Assignment,
     AssignmentSubmission,
     Announcement,
+    FileAttachment
 )
 
 app = Flask(__name__)
@@ -556,3 +557,32 @@ def create_announcement(course_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'message': 'Error al crear anuncio'}), 500
+
+
+@assignments_bp.route('/api/assignments/<int:assignment_id>/files', methods=['GET'])
+@jwt_required()
+def get_assignment_files(assignment_id):
+    current_user_id = int(get_jwt_identity())
+    
+    # Verificar acceso a la tarea
+    assignment = Assignment.query.get_or_404(assignment_id)
+    
+    # Verificar permisos
+    if assignment.course.teacher_id != current_user_id:
+        # Verificar si el usuario está inscrito en el curso
+        enrollment = CourseEnrollment.query.filter_by(
+            student_id=current_user_id,
+            course_id=assignment.course_id
+        ).first()
+        if not enrollment:
+            return jsonify({'message': 'No tienes permisos para ver estos archivos'}), 403
+    
+    files = FileAttachment.query.filter_by(assignment_id=assignment_id).all()
+    
+    return jsonify([{
+        'id': file.id,
+        'filename': file.original_filename,
+        'size': file.file_size,
+        'mime_type': file.mime_type,
+        'uploaded_at': file.created_at.isoformat()
+    } for file in files])
