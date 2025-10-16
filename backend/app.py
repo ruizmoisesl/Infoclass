@@ -1,21 +1,13 @@
 from flask import Flask, request, jsonify, send_file
-from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
-import uuid
-import mimetypes
-from functools import wraps
 from config import Config
 from db import query_one, query_all, execute
-import bcrypt
-from email_config import init_mail, send_verification_email, send_notification_email, generate_verification_token
-from routes import auth_bp,users_bp,courses_bp,assignments_bp,notifications_bp,messages_bp,files_bp
-from routes.files import allowed_file
+from email_config import init_mail, send_notification_email
+from routes import auth_bp, users_bp, courses_bp, assignments_bp, notifications_bp,messages_bp, files_bp
 from routes.files import MAX_FILE_SIZE
 
 
@@ -47,7 +39,7 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
 
 # Inicialización de extensiones (usar la instancia de models.db)
-jwt = JWTManager(app)
+
 CORS(app, origins=app.config['CORS_ORIGINS'])
 socketio = SocketIO(app, cors_allowed_origins=app.config['CORS_ORIGINS'])
 
