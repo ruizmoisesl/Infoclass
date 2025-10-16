@@ -1,9 +1,8 @@
--- Script de creación de base de datos para InfoClass
--- Plataforma educativa similar a Google Classroom
+-- ===============================
+--   CREACIÓN DE TABLAS BASE
+-- ===============================
 
--- Crear base de datos
-CREATE DATABASE IF NOT EXISTS infoclass_db;
-USE infoclass_db;
+USE railway;
 
 -- Tabla de usuarios
 CREATE TABLE users (
@@ -17,7 +16,10 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabla de cursos
+-- ===============================
+--   TABLAS RELACIONADAS A CURSOS
+-- ===============================
+
 CREATE TABLE courses (
     id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
@@ -32,7 +34,6 @@ CREATE TABLE courses (
     FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Tabla de inscripciones a cursos
 CREATE TABLE course_enrollments (
     id INT PRIMARY KEY AUTO_INCREMENT,
     student_id INT NOT NULL,
@@ -43,7 +44,10 @@ CREATE TABLE course_enrollments (
     FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 );
 
--- Tabla de tareas
+-- ===============================
+--   TABLAS DE TAREAS Y ENTREGAS
+-- ===============================
+
 CREATE TABLE assignments (
     id INT PRIMARY KEY AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
@@ -57,7 +61,6 @@ CREATE TABLE assignments (
     FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 );
 
--- Tabla de entregas de tareas
 CREATE TABLE assignment_submissions (
     id INT PRIMARY KEY AUTO_INCREMENT,
     student_id INT NOT NULL,
@@ -75,7 +78,40 @@ CREATE TABLE assignment_submissions (
     FOREIGN KEY (graded_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Tabla de archivos adjuntos
+-- ===============================
+--   TABLAS DE ANUNCIOS Y COMENTARIOS
+-- ===============================
+
+CREATE TABLE announcements (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    is_pinned BOOLEAN DEFAULT FALSE,
+    course_id INT NOT NULL,
+    author_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+    FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE comments (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    content TEXT NOT NULL,
+    author_id INT NOT NULL,
+    announcement_id INT,
+    assignment_id INT,
+    submission_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (announcement_id) REFERENCES announcements(id) ON DELETE CASCADE,
+    FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE,
+    FOREIGN KEY (submission_id) REFERENCES assignment_submissions(id) ON DELETE CASCADE
+);
+
+-- ===============================
+--   TABLAS DE ARCHIVOS Y MENSAJES
+-- ===============================
+
 CREATE TABLE file_attachments (
     id INT PRIMARY KEY AUTO_INCREMENT,
     filename VARCHAR(255) NOT NULL,
@@ -94,35 +130,6 @@ CREATE TABLE file_attachments (
     FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Tabla de anuncios
-CREATE TABLE announcements (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    title VARCHAR(255) NOT NULL,
-    content TEXT NOT NULL,
-    is_pinned BOOLEAN DEFAULT FALSE,
-    course_id INT NOT NULL,
-    author_id INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
-    FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Tabla de comentarios
-CREATE TABLE comments (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    content TEXT NOT NULL,
-    author_id INT NOT NULL,
-    announcement_id INT,
-    assignment_id INT,
-    submission_id INT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (announcement_id) REFERENCES announcements(id) ON DELETE CASCADE,
-    FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE,
-    FOREIGN KEY (submission_id) REFERENCES assignment_submissions(id) ON DELETE CASCADE
-);
-
--- Tabla de mensajes privados
 CREATE TABLE messages (
     id INT PRIMARY KEY AUTO_INCREMENT,
     sender_id INT NOT NULL,
@@ -135,7 +142,10 @@ CREATE TABLE messages (
     FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Tabla de notificaciones
+-- ===============================
+--   TABLA DE NOTIFICACIONES
+-- ===============================
+
 CREATE TABLE notifications (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
@@ -148,7 +158,10 @@ CREATE TABLE notifications (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Índices para mejorar el rendimiento
+-- ===============================
+--   ÍNDICES DE RENDIMIENTO
+-- ===============================
+
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_courses_teacher ON courses(teacher_id);
 CREATE INDEX idx_enrollments_student ON course_enrollments(student_id);
@@ -164,28 +177,31 @@ CREATE INDEX idx_files_submission ON file_attachments(submission_id);
 CREATE INDEX idx_files_assignment ON file_attachments(assignment_id);
 CREATE INDEX idx_files_uploader ON file_attachments(uploaded_by);
 
+-- ===============================
+--   DATOS DE PRUEBA
+-- ===============================
 
--- Insertar usuario administrador por defecto
+-- Usuario administrador
 INSERT INTO users (email, password_hash, first_name, last_name, role) 
 VALUES ('admin@infoclass.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/8KzK4a2', 'Admin', 'Sistema', 'admin');
 -- Contraseña: admin123
 
--- Insertar algunos datos de ejemplo
+-- Usuarios de ejemplo
 INSERT INTO users (email, password_hash, first_name, last_name, role) VALUES
 ('profesor@infoclass.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/8KzK4a2', 'Juan', 'Pérez', 'teacher'),
 ('estudiante@infoclass.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/8KzK4a2', 'María', 'García', 'student');
 
--- Crear un curso de ejemplo
+-- Curso de ejemplo
 INSERT INTO courses (name, description, section, subject, room, access_code, teacher_id) VALUES
 ('Matemáticas Básicas', 'Curso introductorio de matemáticas', 'A', 'Matemáticas', 'Aula 101', 'MATH01', 2);
 
--- Inscribir estudiante en el curso
+-- Inscripción de estudiante
 INSERT INTO course_enrollments (student_id, course_id) VALUES (3, 1);
 
--- Crear una tarea de ejemplo
+-- Tarea de ejemplo
 INSERT INTO assignments (title, description, due_date, max_points, course_id) VALUES
 ('Ejercicios de Álgebra', 'Resolver los ejercicios del capítulo 1', '2024-02-15 23:59:59', 100.00, 1);
 
--- Crear un anuncio de ejemplo
+-- Anuncio de ejemplo
 INSERT INTO announcements (title, content, course_id, author_id) VALUES
 ('Bienvenidos al curso', 'Bienvenidos a Matemáticas Básicas. Este curso cubrirá los fundamentos del álgebra.', 1, 2);
