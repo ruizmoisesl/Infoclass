@@ -10,9 +10,9 @@ const Index = () => {
             <header className="flex justify-between items-center bg-white py-4 px-6 shadow-md">
             <h1 className='text-2xl font-bold'>InfoClass</h1>
             <nav className="flex gap-4 justify-center aling-center">
-                <a href="">Caracteristicas</a>
-                <a href="">Testimonios</a>
-                <a href="">Precios</a>
+                <button className="text-gray-700 hover:text-primary-600 transition-colors">Caracteristicas</button>
+                <button className="text-gray-700 hover:text-primary-600 transition-colors">Testimonios</button>
+                <button className="text-gray-700 hover:text-primary-600 transition-colors">Precios</button>
             </nav>
             <div className="flex gap-4">
                 <button onClick={() => Navigate('/login')} className=" px-4 py-2 rounded-md">Iniciar Sesión</button>
