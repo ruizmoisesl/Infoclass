@@ -10,15 +10,16 @@ RUN apt-get update && apt-get install -y \
     libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements y instalar dependencias de Python
+# Copiar requirements y dependencias
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código de la aplicación
+# Copiar el resto del código
 COPY . .
 
-# Exponer puerto
+# Exponer el puerto (opcional, Railway lo maneja automáticamente)
 EXPOSE 5000
 
-# Comando por defecto
-CMD ["python", "app.py"]
+# Comando de inicio en producción
+CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:${PORT}", "app:app"]
+

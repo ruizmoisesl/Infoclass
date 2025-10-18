@@ -40,7 +40,7 @@ port = int(DB_PORT or port or 3306)
 
 _pool = pooling.MySQLConnectionPool(
     pool_name="infoclass_pool",
-    pool_size=10,
+    pool_size=3,
     host=host,
     user=user,
     password=password,
