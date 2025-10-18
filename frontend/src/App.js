@@ -11,6 +11,7 @@ import Assignments from './pages/Assignments';
 import AssignmentDetail from './pages/AssignmentDetail';
 import Messages from './pages/Messages';
 import Profile from './pages/Profile';
+import Index from './pages/Index';
 import Layout from './components/Layout';
 import LoadingSpinner from './components/LoadingSpinner';
 
@@ -47,6 +48,12 @@ function App() {
     <AuthProvider>
       <div className="App">
         <Routes>
+          <Route path="/" element={
+            <PublicRoute>
+              <Index />
+            </PublicRoute>
+          } 
+          />
           <Route path="/login" element={
             <PublicRoute>
               <Login />
