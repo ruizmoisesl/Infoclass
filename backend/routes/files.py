@@ -14,10 +14,8 @@ from db import query_one, query_all, execute
 import bcrypt
 from email_config import init_mail, send_verification_email, send_notification_email, generate_verification_token
 from routes.roles import role_required
+from utils import allowed_file
 from routes.notifications import create_notification
-
-app = Flask(__name__)
-app.config.from_object(Config)
 
 from models import(
     db as models_db,
@@ -29,10 +27,7 @@ from models import(
     User
 )
 
-# Inicializar la instancia de models.db con la app y usarla localmente como db
-models_db.init_app(app)
-db = models_db
-
+# Inicializar la instancia de models.db con la app y usarla localmente como d
 
 files_bp = Blueprint('files', __name__)
 

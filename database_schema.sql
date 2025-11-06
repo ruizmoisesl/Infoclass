@@ -2,7 +2,7 @@
 --   CREACIÓN DE TABLAS BASE
 -- ===============================
 
-USE railway;
+USE infoclass_db;
 
 -- ==================================================
 -- TABLA: users

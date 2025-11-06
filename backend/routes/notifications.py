@@ -13,7 +13,7 @@ from config import Config
 from db import query_one, query_all, execute
 import bcrypt
 from routes.roles import role_required
-from routes.files import allowed_file
+from utils import allowed_file
 
 from models import (
     db as models_db,

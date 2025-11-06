@@ -47,7 +47,7 @@ def send_verification_email(user_email, user_name, verification_token):
         )
         
         # URL de verificación (ajustar según tu dominio)
-        verification_url = f"http://localhost:3000/verify-email?token={verification_token}"
+        verification_url = f"https://infoclass-theta.vercel.app/verify-email?token={verification_token}"
         
         msg.html = f"""
         <!DOCTYPE html>

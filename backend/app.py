@@ -3,11 +3,12 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
+from flask_jwt_extended import JWTManager
 import os
 from config import Config
 from db import query_one, query_all, execute
 from email_config import init_mail, send_notification_email
-from routes import auth_bp, users_bp, courses_bp, assignments_bp, notifications_bp,messages_bp, files_bp
+from routes import auth_bp, users_bp, courses_bp, assignments_bp, notifications_bp, files_bp
 from routes.files import MAX_FILE_SIZE
 
 
@@ -20,7 +21,6 @@ app.register_blueprint(users_bp)
 app.register_blueprint(courses_bp)
 app.register_blueprint(assignments_bp)
 app.register_blueprint(notifications_bp)
-app.register_blueprint(messages_bp)
 app.register_blueprint(files_bp)
 
 
@@ -30,6 +30,11 @@ app.mail = mail
 
 # Configuración para archivos
 UPLOAD_FOLDER = 'uploads'
+
+
+# Inicializar jwt
+
+jwt = JWTManager()
 
 
 # Crear directorio de uploads si no existe
@@ -42,6 +47,7 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
 CORS(app, origins=app.config['CORS_ORIGINS'])
 socketio = SocketIO(app, cors_allowed_origins=app.config['CORS_ORIGINS'])
+jwt.init_app(app)
 
 # Importar modelos y unificar la instancia de DB
 from models import (
